@@ -1,0 +1,16 @@
+import matplotlib.pyplot as plt
+
+# Get the actual dates for the test data
+dates = df['Date'].values[train_size + time_steps:]
+
+# Plot actual and predicted closing prices
+plt.figure(figsize=(200, 20))
+plt.plot(dates, scaler.inverse_transform(y_test.reshape(-1, 1)), label='Actual')
+plt.plot(dates, predicted_prices, label='Predicted')
+plt.title('Actual vs Predicted Closing Prices')
+plt.xlabel('Date')
+plt.ylabel('Closing Price')
+plt.legend()
+plt.xticks(rotation=45)  # Rotate x-axis labels for better visibility
+plt.tight_layout()  # Prevent overlapping labels
+plt.show()
