@@ -1,0 +1,85 @@
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
+
+# Load historical stock data into a DataFrame
+df = pd.read_csv('CVS.csv')
+
+# Select the target variable (closing price)
+data = df['Close'].values.reshape(-1, 1)
+
+# Scale the data between 0 and 1
+scaler = MinMaxScaler()
+data_scaled = scaler.fit_transform(data)
+
+# Split the data into training and testing sets
+train_size = int(len(data_scaled) * 0.8)
+train_data = data_scaled[:train_size]
+test_data = data_scaled[train_size:]
+
+# Prepare the training data
+time_steps = 10  # Number of previous time steps to use for prediction
+
+X_train = []
+y_train = []
+
+for i in range(time_steps, len(train_data)):
+    X_train.append(train_data[i - time_steps:i, 0])
+    y_train.append(train_data[i, 0])
+
+X_train, y_train = np.array(X_train), np.array(y_train)
+
+# Reshape the data for LSTM input [samples, time steps, features]
+X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+
+# Build the LSTM model
+model = Sequential()
+model.add(LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], 1)))
+model.add(LSTM(units=50))
+model.add(Dense(units=1))
+
+# Compile and train the model
+model.compile(optimizer='adam', loss='mean_squared_error')
+model.fit(X_train, y_train, epochs=20, batch_size=32)
+
+# Prepare the testing data
+X_test = []
+y_test = []
+
+for i in range(time_steps, len(test_data)):
+    X_test.append(test_data[i - time_steps:i, 0])
+    y_test.append(test_data[i, 0])
+
+X_test, y_test = np.array(X_test), np.array(y_test)
+X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+
+# Make predictions
+predicted_prices = model.predict(X_test)
+predicted_prices = scaler.inverse_transform(predicted_prices)
+
+# Evaluate the model
+rmse = np.sqrt(np.mean((predicted_prices - scaler.inverse_transform(y_test.reshape(-1, 1)))**2))
+print('Root Mean Squared Error (RMSE):', rmse)
+
+# Predict the closing price for future days
+future_days = 5  # Number of future days to predict
+
+last_sequence = test_data[-time_steps:]  # Last sequence from the test data
+
+future_predictions = []
+
+for _ in range(future_days):
+    # Reshape the last sequence for prediction
+    last_sequence = last_sequence.reshape(1, time_steps, 1)
+    # Predict the next closing price
+    predicted_price = model.predict(last_sequence)
+    # Append the predicted price to the future predictions list
+    future_predictions.append(predicted_price[0, 0])
+    # Update the last sequence with the predicted price
+    last_sequence = np.roll(last_sequence, -1, axis=1)
+    last_sequence[0, -1, 0] = predicted_price[0, 0]
+
+future_predictions = scaler.inverse_transform(np.array(future_predictions).reshape(-1, 1))
+print('Predicted closing prices for future days:', future_predictions)
